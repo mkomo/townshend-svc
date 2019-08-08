@@ -5,11 +5,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.mkomo.townshend.security.TownshendPermissionBuilder.TPMethod;
-import com.mkomo.townshend.security.TownshendPermissionBuilder.TPPredicateType;
 import com.mkomo.townshend.TownshendSvcApplication;
 import com.mkomo.townshend.bean.TownshendInvitationRequest;
 import com.mkomo.townshend.repository.TownshendInvitationRequestRepository;
+import com.mkomo.townshend.security.TownshendPermissionBuilder.TPMethod;
+import com.mkomo.townshend.security.TownshendPermissionBuilder.TPPredicateType;
 import com.mkomo.townshend.security.TownshendPermissionScheme;
 
 @RestController

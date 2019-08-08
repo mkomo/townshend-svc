@@ -8,6 +8,8 @@ import javax.persistence.MappedSuperclass;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.mkomo.townshend.bean.helper.TownshendAuditable;
 
 import lombok.Data;
@@ -19,6 +21,7 @@ import lombok.NoArgsConstructor;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @MappedSuperclass
+@JsonInclude(Include.NON_NULL)
 public class TownshendRoleAbstract extends TownshendAuditable {
 
 	@Id
@@ -30,9 +33,6 @@ public class TownshendRoleAbstract extends TownshendAuditable {
 			+ "only UPPERCASE letters, numbers and '_'")
 	@NotBlank
 	private String roleName;
-
-	@Deprecated
-	private String roleDomain;
 
 	private Boolean publiclyAssignable;
 

@@ -1,7 +1,10 @@
 package com.mkomo.townshend.controller;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,7 +36,13 @@ import com.mkomo.townshend.security.TownshendPermissionScheme;
 @RestController
 public abstract class TownshendBaseController<T,ID> {
 
-	private static final ObjectMapper MAPPER = new ObjectMapper();
+	/**
+	 * Use autowired mapper b/c it will format date in the application-wide standard way
+	 */
+	@Autowired
+	private ObjectMapper MAPPER;
+
+	private static final String FIELD_FILTER_SEPARATOR = ",";
 
 	private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -233,22 +242,33 @@ public abstract class TownshendBaseController<T,ID> {
 	}
 
 	@RequestMapping(method = RequestMethod.GET)
-	public ResponseEntity<?> list(T probe, @RequestParam(required=false) Long filterFor, TownshendAuthentication u) {
+	public ResponseEntity<?> list(T probe,
+			@RequestParam(required=false) String fieldFilter,
+			@RequestParam Map<String,String> allRequestParams,
+			TownshendAuthentication u) {
 		List<T> list = getRepo().findAll(Example.of(probe));
 
-		if (filterFor!= null) {
-			//use long instead of boolean for caching
-			if (!filterFor.equals(u.getClaims().getSub())) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN).body("filterFor param does not match userId:" + u.getClaims().getSub());
-			}
-			list = this.getPermissionScheme().filterList(list, u);
-		} else {
-			ResponseEntity<?> resp = this.userCanList(list, u);
-			if (resp != null) {
-				return resp;
-			}
+		ResponseEntity<?> resp = this.userCanList(list, u);
+		if (resp != null) {
+			return resp;
 		}
-		return ResponseEntity.ok().body(list);
+
+		if (fieldFilter != null) {
+			List<String> fields = Arrays.asList(fieldFilter.split(FIELD_FILTER_SEPARATOR));
+			logger.info("filtering to fields: {}", fields);
+			JsonNode tree = MAPPER.valueToTree(list);
+			List<Map<String, JsonNode>> filtered = new ArrayList<>();
+			for (final JsonNode element : tree) {
+				Map<String, JsonNode> filteredElement = new LinkedHashMap<>();
+				for (String field : fields) {
+					filteredElement.put(field, element.get(field));
+				}
+				filtered.add(filteredElement);
+			}
+			return ResponseEntity.ok().body(filtered);
+		} else {
+			return ResponseEntity.ok().body(list);
+		}
 	}
 
 }

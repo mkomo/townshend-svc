@@ -1,9 +1,7 @@
 package com.mkomo.townshend.security;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,18 +9,21 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.apache.commons.beanutils.PropertyUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import com.fasterxml.jackson.annotation.JsonValue;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
 public class TownshendPermissionBuilder {
+
+	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	private static final Logger logger = LoggerFactory.getLogger(TownshendPermissionBuilder.class);
 
@@ -113,12 +114,12 @@ public class TownshendPermissionBuilder {
 		ID_EQUAL(path -> {
 			return pm -> {
 				try {
-					Object item = pm.getRequestItem();
+					JsonNode item = MAPPER.valueToTree(pm.getRequestItem());
 					for (String fieldName : path) {
-						item = PropertyUtils.getProperty(item, fieldName);
+						item = getProperty(item, fieldName);
 					}
 					return item != null && pm.getAuthentication() != null &&
-							item.equals(pm.getAuthentication().getClaims().getSub());
+							pm.getAuthentication().getClaims().getSub().equals(item.asLong());
 				} catch (Exception e) {
 					logger.debug("error finding property for predicate ID_EQUAL", e);
 					return false;
@@ -128,8 +129,10 @@ public class TownshendPermissionBuilder {
 		ID_IN(path -> {
 			return pm -> {
 				try {
-					return collectionSafeMatch(pm.getRequestItem(), path,
-							pm.getAuthentication().getClaims().getSub());
+					JsonNode item = MAPPER.valueToTree(pm.getRequestItem());
+					return collectionSafeMatch(item, path,
+							pm.getAuthentication().getClaims().getSub(),
+							i -> i.asLong());
 				} catch (Exception e) {
 					logger.debug("error finding property for predicate ID_IN", e);
 					return false;
@@ -146,11 +149,11 @@ public class TownshendPermissionBuilder {
 		TARGET_TRUE(path -> {
 			return pm -> {
 				try {
-					Object item = pm.getRequestItem();
+					JsonNode item = MAPPER.valueToTree(pm.getRequestItem());
 					for (String fieldName : path) {
-						item = PropertyUtils.getProperty(item, fieldName);
+						item = getProperty(item, fieldName);
 					}
-					return item != null && (Boolean)item;
+					return item != null && item.isBoolean() && item.asBoolean();
 				} catch (Exception e) {
 					logger.debug("error finding property for predicate TARGET_TRUE", e);
 					return false;
@@ -160,11 +163,11 @@ public class TownshendPermissionBuilder {
 		TARGET_EMPTY(path -> {
 			return pm -> {
 				try {
-					Object item = pm.getRequestItem();
+					JsonNode item = MAPPER.valueToTree(pm.getRequestItem());
 					for (String fieldName : path) {
-						item = PropertyUtils.getProperty(item, fieldName);
+						item = getProperty(item, fieldName);
 					}
-					return item == null || ((Collection<?>)item).isEmpty();
+					return item == null || !item.elements().hasNext();
 				} catch (Exception e) {
 					logger.debug("error finding property for predicate TARGET_TRUE", e);
 					return false;
@@ -196,14 +199,19 @@ public class TownshendPermissionBuilder {
 		}
 
 		private ResponseEntity<?> userCan(TPMethod method, Object entity, TownshendAuthentication u) {
+			String username = u != null ? u.getName() : "*anon*";
 			if (permissionMap.get(method) != null) {
 				PermittableRequest req = new PermittableRequest(entity, u);
 				for (TPPredicate pred : permissionMap.get(method)) {
 					if (pred.test(req)) {
+						logger.info(username + " can " + method + " " + entity);
 						return null;
+					} else {
+						logger.info(username + " failed " + pred + " for " + entity);
 					}
 				}
 			}
+			logger.info(username + " can not " + method + " " + entity);
 			return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
 		}
 
@@ -256,6 +264,10 @@ public class TownshendPermissionBuilder {
 		return new TownshendPermissionBuilderScheme(this.permissionMap);
 	}
 
+	public static JsonNode getProperty(JsonNode item, String fieldName) {
+		return item.get(fieldName);
+	}
+
 	public TownshendPermissionBuilder add(TPMethod method, TPPredicate predicate) {
 		if (permissionMap.get(method) == null) {
 			permissionMap.put(method, new ArrayList<>());
@@ -298,24 +310,23 @@ public class TownshendPermissionBuilder {
 		return this;
 	}
 
-	public static boolean collectionSafeMatch(Object item, String[] path, Object matchValue) throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+	public static boolean collectionSafeMatch(JsonNode item, String[] path, Object matchValue, Function<JsonNode, Object> map) {
 		if (path.length == 0) {
-			return matchValue.equals(item);
+			return matchValue.equals(map.apply(item));
 		} else {
 			String fieldName = path[0];
 			path = Arrays.copyOfRange(path, 1, path.length);
-			if (item instanceof Collection) {
-				Collection<?> coll = (Collection<?>) item;
-				for (Object val : coll) {
-					val = PropertyUtils.getProperty(val, fieldName);
-					if (collectionSafeMatch(val, path, matchValue)) {
+			if (item.isArray()) {
+				for (JsonNode val : item) {
+					val = getProperty(val, fieldName);
+					if (collectionSafeMatch(val, path, matchValue, map)) {
 						return true;
 					}
 				}
 				return false;
 			} else {
-				item = PropertyUtils.getProperty(item, fieldName);
-				return collectionSafeMatch(item, path, matchValue);
+				item = getProperty(item, fieldName);
+				return collectionSafeMatch(item, path, matchValue, map);
 			}
 		}
 	}

@@ -24,6 +24,7 @@ import com.mkomo.townshend.TownshendSvcApplication;
 import com.mkomo.townshend.bean.helper.json.JsonSchema;
 import com.mkomo.townshend.config.TownshendAccountConfig;
 import com.mkomo.townshend.config.TownshendFieldConfig;
+import com.mkomo.townshend.config.TownshendFrontendApplicationConfig;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -36,6 +37,9 @@ public class TownshendConfigController implements ApplicationContextAware {
 
 	@Autowired
 	private TownshendAccountConfig accountConfig;
+
+	@Autowired
+	private TownshendFrontendApplicationConfig frontendApplicationConfig;
 
 	private ApplicationContext applicationContext;
 
@@ -51,7 +55,7 @@ public class TownshendConfigController implements ApplicationContextAware {
 	@GetMapping
 	public Object getApplicationConfig(@RequestParam(required=false) boolean yaml) throws JsonProcessingException {
 		ApplicationConfig config =
-				new ApplicationConfig(accountConfig, applicationContext, this.getEntityControllerBeanNames());
+				new ApplicationConfig(frontendApplicationConfig.getFrontendConfig(), accountConfig, applicationContext, this.getEntityControllerBeanNames());
 		if (yaml) {
 			return ResponseEntity.ok()
 					.contentType(MEDIA_TYPE_YAML)
@@ -79,6 +83,7 @@ public class TownshendConfigController implements ApplicationContextAware {
 	@AllArgsConstructor
 	public static class ApplicationConfig {
 
+		private Object frontendApplicationConfig;
 		private TownshendAccountConfig accountConfiguration;
 		@Getter(AccessLevel.NONE)
 		private ApplicationContext applicationContext;
