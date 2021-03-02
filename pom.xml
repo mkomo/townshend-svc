@@ -122,6 +122,11 @@
 			<version>5.0.7.RELEASE</version>
 			<scope>compile</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.apache.bcel</groupId>
+			<artifactId>bcel</artifactId>
+			<version>6.4.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>
